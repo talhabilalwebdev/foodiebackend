@@ -18,10 +18,10 @@ from bson.objectid import ObjectId
 # Config
 # ---------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+CORS(app, resources={r"/api/*": {"origins": "https://foodiestore.vercel.app"}})
 
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/foodieweb")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://foodieweb:FoodieWeb1!@cluster0.cqqlapf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 SECRET_KEY = os.getenv("SECRET_KEY", "change_me_in_prod")
 
 app.config["MONGO_URI"] = MONGO_URI
