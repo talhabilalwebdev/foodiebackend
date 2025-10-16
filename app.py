@@ -6,8 +6,8 @@ from slugify import slugify  # pip install python-slugify
 import bcrypt
 import jwt
 import requests
-from datetime import date, datetime, timedelta
 import locale
+from datetime import date, datetime, timedelta
 import re
 import os
 from functools import wraps
