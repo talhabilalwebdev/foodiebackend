@@ -28,17 +28,6 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change_me_in_prod")
 app.config["MONGO_URI"] = MONGO_URI
 app.secret_key = SECRET_KEY
 
-# ---------------------------
-# MongoDB Connection Handling
-# ---------------------------
-try:
-    mongo = PyMongo(app)
-    # test connection
-    mongo.cx.admin.command("ping")
-    print("✅ MongoDB connected successfully.")
-except ConnectionFailure as e:
-    mongo = None
-    print("❌ MongoDB connection failed:", e)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
