@@ -7,6 +7,7 @@ import bcrypt
 import jwt
 import requests
 from datetime import date, datetime, timedelta
+import locale
 import re
 import os
 from functools import wraps
