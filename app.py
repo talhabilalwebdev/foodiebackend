@@ -35,9 +35,11 @@ try:
     mongo = PyMongo(app)
     # test connection
     mongo.cx.admin.command("ping")
+    return jsonify({"error": "✅ MongoDB connected successfully."}), 200
     print("✅ MongoDB connected successfully.")
 except ConnectionFailure as e:
     mongo = None
+    return jsonify({"error": "❌ MongoDB connection failed:", e}), 200
     print("❌ MongoDB connection failed:", e)
 
 UPLOAD_FOLDER = "uploads"
