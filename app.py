@@ -21,7 +21,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "https://foodiestore.vercel.app"}})
 
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://Foodieweb:FoodieWeb1!@cluster0.cqqlapf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://foodieweb:FoodieWeb1!@cluster0.cqqlapf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 SECRET_KEY = os.getenv("SECRET_KEY", "change_me_in_prod")
 
 app.config["MONGO_URI"] = MONGO_URI
@@ -387,11 +387,23 @@ def get_fdishes():
     today = date.today()
     day = today.strftime("%A")  # get day name, e.g., "Monday"
 
-   
+    # Find dishes for today that are not deleted
+    dishes = list(
+        mongo.db.dishes.find({
+            "deleted_at": None,
+            "day": {"$regex": f"^{day}$", "$options": "i"}
+        }).sort("created_at", -1)
+    )
+
+    # Convert ObjectId to string for JSON serialization
+    for d in dishes:
+        d["_id"] = str(d["_id"])
+        if "img" in d:
+            d["img"] = request.host_url.rstrip("/") + d["img"]
 
 
     # Return both dishes and today name
-    return jsonify({"today": day}), 200
+    return jsonify({"dishes": dishes, "today": day}), 200
 
 # ---------- CART endpoints (add/replace in app.py) ----------
 from bson.objectid import ObjectId
