@@ -35,11 +35,9 @@ try:
     mongo = PyMongo(app)
     # test connection
     mongo.cx.admin.command("ping")
-    return jsonify({"error": "✅ MongoDB connected successfully."}), 200
     print("✅ MongoDB connected successfully.")
 except ConnectionFailure as e:
     mongo = None
-    return jsonify({"error": "❌ MongoDB connection failed:", e}), 200
     print("❌ MongoDB connection failed:", e)
 
 UPLOAD_FOLDER = "uploads"
@@ -402,11 +400,24 @@ def get_fdishes():
     today = date.today()
     day = today.strftime("%A")  # get day name, e.g., "Monday"
 
-    
+    # Find dishes for today that are not deleted
+    dishes = list(
+        mongo.db.dishes.find({
+            "deleted_at": None,
+            "day": {"$regex": f"^{day}$", "$options": "i"}
+        }).sort("created_at", -1)
+    )
+
+    # Convert ObjectId to string for JSON serialization
+    for d in dishes:
+        d["_id"] = str(d["_id"])
+        if "img" in d:
+            d["img"] = request.host_url.rstrip("/") + d["img"]
 
 
     # Return both dishes and today name
-    return jsonify({ "today": day}), 200
+    return jsonify({"dishes": dishes, "today": day}), 200
+
 
 # ---------- CART endpoints (add/replace in app.py) ----------
 from bson.objectid import ObjectId
