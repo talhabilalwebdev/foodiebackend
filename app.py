@@ -2,7 +2,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_pymongo import PyMongo
 from flask_cors import CORS
-from slugify import slugify  # pip install python-slugify
+from slugify import slugify 
 import bcrypt
 import jwt
 import requests
