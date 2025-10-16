@@ -18,7 +18,7 @@ from bson.objectid import ObjectId
 # Config
 # ---------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "https://foodiebackend-1-ef18.onrender.com"}})
+CORS(app, resources={r"/api/*": {"origins": "https://foodiestore.vercel.app"}})
 
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://foodieweb:FoodieWeb1!@cluster0.cqqlapf.mongodb.net/FoodieWeb?retryWrites=true&w=majority")
