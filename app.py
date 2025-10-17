@@ -386,8 +386,17 @@ def delete_order(id):
 @app.route("/api/fdishes", methods=["GET"])
 def get_fdishes():
         # Set locale to U.S. English for consistent weekday names
-    today = date.today() 
-    day = today.strftime("%A")
+    today = date.today()
+    day = today.strftime("%A")  # get day name, e.g., "Monday"
+
+    # Find dishes for today that are not deleted
+    dishes = list(
+        mongo.db.dishes.find({
+            "deleted_at": None,
+            "day": {"$regex": f"^{day}$", "$options": "i"}
+        }).sort("created_at", -1)
+    )
+
     # Convert ObjectId to string for JSON serialization
     for d in dishes:
         d["_id"] = str(d["_id"])
