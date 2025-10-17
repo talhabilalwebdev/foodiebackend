@@ -15,9 +15,9 @@ from werkzeug.utils import secure_filename
 import time
 from bson.objectid import ObjectId
 
-# -------------------------
+# ---------------------------
 # Config
-# -------------------------
+# ---------------------------
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "https://foodiestore.vercel.app"}})
 
