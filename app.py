@@ -852,13 +852,15 @@ def create_blog_post():
         return jsonify({"error": "Title, content, and category are required"}), 400
 
     # Handle image upload
-    image_url = ""
+   
+    img_url = ""
     if img_file:
-        if "." not in img_file.filename or img_file.filename.rsplit(".", 1)[1].lower() not in {"png","jpg","jpeg","webp"}:
-            return jsonify({"error": "Invalid image format"}), 400
-        filename = secure_filename(f"blog_{int(datetime.utcnow().timestamp())}.{img_file.filename.rsplit('.',1)[1].lower()}")
-        img_file.save(os.path.join(UPLOAD_FOLDER, filename))
-        image_url = f"/{UPLOAD_FOLDER}/{filename}"
+        try:
+            upload_result = cloudinary.uploader.upload(img_file, folder="foodieweb/dishes")
+            img_url = upload_result.get("secure_url")
+        except Exception as e:
+            print("Cloudinary upload error:", e)
+            return jsonify({"error": "Failed to upload dish image"}), 500
 
     # Create slug
     slug = slugify(title)
@@ -936,14 +938,14 @@ def update_blog(id):
             update_data["content"] = content
 
         # ✅ Handle image upload
-        if "image" in request.files:
-            image = request.files["image"]
-            if image:
-                filename = secure_filename(image.filename)
-                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                image_path = os.path.join(UPLOAD_FOLDER, filename)
-                image.save(image_path)
-                update_data["image"] = f"/uploads/{filename}"
+        img_url = ""
+        if img_file:
+            try:
+                upload_result = cloudinary.uploader.upload(img_file, folder="foodieweb/dishes")
+                img_url = upload_result.get("secure_url")
+            except Exception as e:
+                print("Cloudinary upload error:", e)
+                return jsonify({"error": "Failed to upload dish image"}), 500
 
         # ✅ Update in MongoDB
         mongo.db.blog_posts.update_one(
