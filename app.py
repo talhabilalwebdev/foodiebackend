@@ -2,11 +2,10 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_pymongo import PyMongo
 from flask_cors import CORS
-from slugify import slugify 
+from slugify import slugify  # pip install python-slugify
 import bcrypt
 import jwt
 import requests
-import locale
 from datetime import date, datetime, timedelta
 import re
 import os
@@ -14,10 +13,16 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 import time
 from bson.objectid import ObjectId
+import os
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+from dotenv import load_dotenv
+load_dotenv()
 
-# -------------------------
+# ---------------------------
 # Config
-# -------------------------
+# ---------------------------
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "https://foodiestore.vercel.app"}})
 
@@ -27,6 +32,29 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change_me_in_prod")
 
 app.config["MONGO_URI"] = MONGO_URI
 mongo = PyMongo(app)
+
+# Configure Cloudinary from env
+
+# Configure Cloudinary
+cloudinary.config(
+    cloud_name="ddynpnl2x",
+    api_key="115627684474465",
+    api_secret="ci6QsaIujxr9riKf5xnISmbceu0"
+)
+
+@app.route("/api/upload", methods=["POST"])
+def upload_image():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    # Optional: save to local or Cloudinary later
+    file.save(os.path.join("uploads", file.filename))
+    return jsonify({"message": "File uploaded", "filename": file.filename}), 200
+
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -259,11 +287,12 @@ def create_dish():
 
     img_url = ""
     if img_file:
-        ext = img_file.filename.rsplit(".", 1)[-1].lower()
-        filename = f"dish_{int(datetime.utcnow().timestamp())}.{ext}"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        img_file.save(filepath)
-        img_url = f"/{UPLOAD_FOLDER}/{filename}"
+        try:
+            upload_result = cloudinary.uploader.upload(img_file, folder="foodieweb/dishes")
+            img_url = upload_result.get("secure_url")
+        except Exception as e:
+            print("Cloudinary upload error:", e)
+            return jsonify({"error": "Failed to upload dish image"}), 500
 
     dish = {
         "title": title,
@@ -289,7 +318,9 @@ def get_dishes():
     for d in dishes:
         d["_id"] = str(d["_id"])
         if "img" in d:
-            d["img"] = request.host_url.rstrip("/") + d["img"]
+            if "cloudinary" not in d["img"]:
+                d["img"] = request.host_url.rstrip("/") + d["img"]
+
             
     return jsonify(dishes), 200
 
@@ -302,29 +333,46 @@ def update_dish(dish_id):
     except Exception:
         return jsonify({"error": "Invalid dish ID"}), 400
 
+    # Check if dish exists and not soft-deleted
     dish = mongo.db.dishes.find_one({"_id": dish_oid, "deleted_at": None})
     if not dish:
         return jsonify({"error": "Dish not found"}), 404
 
+    # Get form data (or existing values)
     title = request.form.get("title") or dish["title"]
     price = request.form.get("price") or dish["price"]
     day = request.form.get("day") or dish["day"]
+
     img_file = request.files.get("img")
-
     img_url = dish.get("img", "")
-    if img_file:
-        ext = img_file.filename.rsplit(".", 1)[-1].lower()
-        filename = f"dish_{int(datetime.utcnow().timestamp())}.{ext}"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        img_file.save(filepath)
-        img_url = f"/{UPLOAD_FOLDER}/{filename}"
 
+    # ✅ Cloudinary upload (only if new image provided)
+    if img_file:
+        try:
+            upload_result = cloudinary.uploader.upload(
+                img_file,
+                folder="foodieweb/dishes",  # Store in organized folder
+                public_id=f"{dish_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                overwrite=True
+            )
+            img_url = upload_result.get("secure_url")
+        except Exception as e:
+            print("Cloudinary upload error:", e)
+            return jsonify({"error": "Failed to upload dish image"}), 500
+
+    # ✅ Ensure numeric price conversion
+    try:
+        price = float(price)
+    except ValueError:
+        return jsonify({"error": "Invalid price value"}), 400
+
+    # ✅ Update dish in MongoDB
     mongo.db.dishes.update_one(
         {"_id": dish_oid},
         {"$set": {
-            "title": title,
-            "price": float(price),
-            "day": day,
+            "title": title.strip(),
+            "price": price,
+            "day": day.strip(),
             "img": img_url,
             "updated_by": request.user["email"],
             "updated_at": datetime.utcnow()
@@ -332,7 +380,6 @@ def update_dish(dish_id):
     )
 
     return jsonify({"message": "Dish updated successfully"}), 200
-
 
 @app.route("/api/dishes/<dish_id>", methods=["DELETE"])
 @token_required
@@ -385,7 +432,6 @@ def delete_order(id):
 # Frontend route for today's dishes
 @app.route("/api/fdishes", methods=["GET"])
 def get_fdishes():
-        # Set locale to U.S. English for consistent weekday names
     today = date.today()
     day = today.strftime("%A")  # get day name, e.g., "Monday"
 
