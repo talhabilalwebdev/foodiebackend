@@ -869,14 +869,12 @@ def create_blog_post():
 
     # Handle image upload
    
-    img_url = ""
-    if img_file:
-        try:
-            upload_result = cloudinary.uploader.upload(img_file, folder="foodieweb/dishes")
-            img_url = upload_result.get("secure_url")
-        except Exception as e:
-            print("Cloudinary upload error:", e)
-            return jsonify({"error": "Failed to upload dish image"}), 500
+    image_url = ""
+    if img_file and allowed_file(img_file.filename):
+        uploaded_url = upload_to_cloudinary(img_file)
+        if not uploaded_url:
+            return jsonify({"error": "Image upload failed"}), 500
+        image_url = uploaded_url
 
     # Create slug
     slug = slugify(title)
@@ -960,14 +958,11 @@ def update_blog(id):
             update_data["content"] = content
 
         # ✅ Handle image upload
-        img_url = ""
-        if img_file:
-            try:
-                upload_result = cloudinary.uploader.upload(img_file, folder="foodieweb/dishes")
-                img_url = upload_result.get("secure_url")
-            except Exception as e:
-                print("Cloudinary upload error:", e)
-                return jsonify({"error": "Failed to upload dish image"}), 500
+        image_url = blog.get("image", "")
+        if img_file and allowed_file(img_file.filename):
+            uploaded_url = upload_to_cloudinary(img_file)
+            if uploaded_url:
+                image_url = uploaded_url
 
         # ✅ Update in MongoDB
         mongo.db.blog_posts.update_one(
