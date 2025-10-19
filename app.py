@@ -24,7 +24,7 @@ load_dotenv()
 # Config
 # ---------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
+CORS(app, resources={r"/*": {"origins": ["https://foodiestore.vercel.app"]}})
 
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/foodieweb")
