@@ -27,7 +27,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": ["https://foodiestore.vercel.app"]}})
 
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/foodieweb")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://foodieweb:FoodieWeb1!@cluster0.cqqlapf.mongodb.net/FoodieWeb?retryWrites=true&w=majority")
 SECRET_KEY = os.getenv("SECRET_KEY", "change_me_in_prod")
 
 app.config["MONGO_URI"] = MONGO_URI
