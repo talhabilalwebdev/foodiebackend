@@ -349,25 +349,31 @@ def update_dish(dish_id):
     except Exception:
         return jsonify({"error": "Invalid dish ID"}), 400
 
-    # Check if dish exists and not soft-deleted
-    dish = mongo.db.dishes.find_one({"_id": dish_oid, "deleted_at": None})
+    dish = mongo.db.dishes.find_one({
+        "_id": dish_oid,
+        "$or": [{"deleted_at": None}, {"deleted_at": {"$exists": False}}]
+    })
     if not dish:
         return jsonify({"error": "Dish not found"}), 404
 
-    # Get form data (or existing values)
-    title = request.form.get("title") or dish["title"]
-    price = request.form.get("price") or dish["price"]
-    day = request.form.get("day") or dish["day"]
-
+    title = request.form.get("title", dish.get("title"))
+    price = request.form.get("price", dish.get("price"))
+    day = request.form.get("day", dish.get("day"))
     img_file = request.files.get("img")
     img_url = dish.get("img", "")
 
-    # ✅ Cloudinary upload (only if new image provided)
+    # ✅ Check file size before upload
     if img_file:
+        img_file.seek(0, 2)
+        file_size = img_file.tell()
+        img_file.seek(0)
+        if file_size > 2 * 1024 * 1024:
+            return jsonify({"error": "File size exceeds 2MB limit"}), 400
+
         try:
             upload_result = cloudinary.uploader.upload(
                 img_file,
-                folder="foodieweb/dishes",  # Store in organized folder
+                folder="foodieweb/dishes",
                 public_id=f"{dish_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
                 overwrite=True
             )
@@ -376,13 +382,13 @@ def update_dish(dish_id):
             print("Cloudinary upload error:", e)
             return jsonify({"error": "Failed to upload dish image"}), 500
 
-    # ✅ Ensure numeric price conversion
     try:
         price = float(price)
-    except ValueError:
+    except (ValueError, TypeError):
         return jsonify({"error": "Invalid price value"}), 400
 
-    # ✅ Update dish in MongoDB
+    updated_by = request.user["email"] if request.user and "email" in request.user else "unknown"
+
     mongo.db.dishes.update_one(
         {"_id": dish_oid},
         {"$set": {
@@ -390,12 +396,13 @@ def update_dish(dish_id):
             "price": price,
             "day": day.strip(),
             "img": img_url,
-            "updated_by": request.user["email"],
+            "updated_by": updated_by,
             "updated_at": datetime.utcnow()
         }}
     )
 
     return jsonify({"message": "Dish updated successfully"}), 200
+
 
 @app.route("/api/dishes/<dish_id>", methods=["DELETE"])
 @token_required
