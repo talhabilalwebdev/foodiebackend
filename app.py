@@ -24,10 +24,10 @@ load_dotenv()
 # Config
 # ---------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "https://foodiestore.vercel.app"}})
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
 
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://foodieweb:FoodieWeb1!@cluster0.cqqlapf.mongodb.net/FoodieWeb?retryWrites=true&w=majority")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/foodieweb")
 SECRET_KEY = os.getenv("SECRET_KEY", "change_me_in_prod")
 
 app.config["MONGO_URI"] = MONGO_URI
@@ -333,31 +333,25 @@ def update_dish(dish_id):
     except Exception:
         return jsonify({"error": "Invalid dish ID"}), 400
 
-    dish = mongo.db.dishes.find_one({
-        "_id": dish_oid,
-        "$or": [{"deleted_at": None}, {"deleted_at": {"$exists": False}}]
-    })
+    # Check if dish exists and not soft-deleted
+    dish = mongo.db.dishes.find_one({"_id": dish_oid, "deleted_at": None})
     if not dish:
         return jsonify({"error": "Dish not found"}), 404
 
-    title = request.form.get("title", dish.get("title"))
-    price = request.form.get("price", dish.get("price"))
-    day = request.form.get("day", dish.get("day"))
+    # Get form data (or existing values)
+    title = request.form.get("title") or dish["title"]
+    price = request.form.get("price") or dish["price"]
+    day = request.form.get("day") or dish["day"]
+
     img_file = request.files.get("img")
     img_url = dish.get("img", "")
 
-    # ✅ Check file size before upload
+    # ✅ Cloudinary upload (only if new image provided)
     if img_file:
-        img_file.seek(0, 2)
-        file_size = img_file.tell()
-        img_file.seek(0)
-        if file_size > 2 * 1024 * 1024:
-            return jsonify({"error": "File size exceeds 2MB limit"}), 400
-
         try:
             upload_result = cloudinary.uploader.upload(
                 img_file,
-                folder="foodieweb/dishes",
+                folder="foodieweb/dishes",  # Store in organized folder
                 public_id=f"{dish_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
                 overwrite=True
             )
@@ -366,13 +360,13 @@ def update_dish(dish_id):
             print("Cloudinary upload error:", e)
             return jsonify({"error": "Failed to upload dish image"}), 500
 
+    # ✅ Ensure numeric price conversion
     try:
         price = float(price)
-    except (ValueError, TypeError):
+    except ValueError:
         return jsonify({"error": "Invalid price value"}), 400
 
-    updated_by = request.user["email"] if request.user and "email" in request.user else "unknown"
-
+    # ✅ Update dish in MongoDB
     mongo.db.dishes.update_one(
         {"_id": dish_oid},
         {"$set": {
@@ -380,13 +374,12 @@ def update_dish(dish_id):
             "price": price,
             "day": day.strip(),
             "img": img_url,
-            "updated_by": updated_by,
+            "updated_by": request.user["email"],
             "updated_at": datetime.utcnow()
         }}
     )
 
     return jsonify({"message": "Dish updated successfully"}), 200
-
 
 @app.route("/api/dishes/<dish_id>", methods=["DELETE"])
 @token_required
@@ -859,13 +852,16 @@ def create_blog_post():
         return jsonify({"error": "Title, content, and category are required"}), 400
 
     # Handle image upload
+    
     image_url = ""
     if img_file:
-        if "." not in img_file.filename or img_file.filename.rsplit(".", 1)[1].lower() not in {"png","jpg","jpeg","webp"}:
-            return jsonify({"error": "Invalid image format"}), 400
-        filename = secure_filename(f"blog_{int(datetime.utcnow().timestamp())}.{img_file.filename.rsplit('.',1)[1].lower()}")
-        img_file.save(os.path.join(UPLOAD_FOLDER, filename))
-        image_url = f"/{UPLOAD_FOLDER}/{filename}"
+        try:
+            upload_result = cloudinary.uploader.upload(img_file, folder="foodieweb/blogs")
+            image_url = upload_result.get("secure_url")
+        except Exception as e:
+            print("Cloudinary upload error:", e)
+            return jsonify({"error": "Failed to upload blog image"}), 500
+
 
     # Create slug
     slug = slugify(title)
@@ -894,12 +890,6 @@ def get_blog_posts():
     posts = list(mongo.db.blog_posts.find().sort("created_at", -1))
     for post in posts:
         post["_id"] = str(post["_id"])
-
-    for d in dishes:
-        d["_id"] = str(d["_id"])
-        if "img" in d:
-            if "cloudinary" not in d["image"]:
-                d["image"] = request.host_url.rstrip("/") + d["image"]
         
         # Fetch category name
         category = mongo.db.categories.find_one({"_id": ObjectId(post["category"])})
@@ -948,10 +938,13 @@ def update_blog(id):
         if content:
             update_data["content"] = content
 
+        
+        img_file = request.files.get("image")
+        
         # ✅ Handle image upload
         image_url = blog.get("image", "")
         if img_file and allowed_file(img_file.filename):
-            uploaded_url = upload_to_cloudinary(img_file)
+            uploaded_url = cloudinary.uploader.upload(img_file)
             if uploaded_url:
                 image_url = uploaded_url
 
@@ -978,6 +971,7 @@ def update_blog(id):
     except Exception as e:
         print("Error updating blog:", e)
         return jsonify({"message": "Server error", "error": str(e)}), 500
+
 
 # 🟥 Delete post
 @app.route("/api/posts/<post_id>", methods=["DELETE"])
