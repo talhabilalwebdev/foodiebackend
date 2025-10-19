@@ -859,13 +859,13 @@ def create_blog_post():
         return jsonify({"error": "Title, content, and category are required"}), 400
 
     # Handle image upload
-   
     image_url = ""
-    if img_file and allowed_file(img_file.filename):
-        uploaded_url = upload_to_cloudinary(img_file)
-        if not uploaded_url:
-            return jsonify({"error": "Image upload failed"}), 500
-        image_url = uploaded_url
+    if img_file:
+        if "." not in img_file.filename or img_file.filename.rsplit(".", 1)[1].lower() not in {"png","jpg","jpeg","webp"}:
+            return jsonify({"error": "Invalid image format"}), 400
+        filename = secure_filename(f"blog_{int(datetime.utcnow().timestamp())}.{img_file.filename.rsplit('.',1)[1].lower()}")
+        img_file.save(os.path.join(UPLOAD_FOLDER, filename))
+        image_url = f"/{UPLOAD_FOLDER}/{filename}"
 
     # Create slug
     slug = slugify(title)
