@@ -47,29 +47,13 @@ def upload_image():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
-    img_file = request.files["file"]
-
-    if img_file.filename == "":
+    file = request.files["file"]
+    if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    # ✅ Check file size (2 MB = 2 * 1024 * 1024 bytes)
-    img_file.seek(0, 2)  # Move to the end of the file
-    file_size = img_file.tell()
-    img_file.seek(0)  # Reset pointer
-
-    if file_size > 2 * 1024 * 1024:
-        return jsonify({"error": "File size exceeds 2MB limit"}), 400
-
-    try:
-        upload_result = cloudinary.uploader.upload(
-            img_file,
-            folder="foodieweb/dishes"
-        )
-        img_url = upload_result.get("secure_url")
-        return jsonify({"image_url": img_url}), 200
-    except Exception as e:
-        print("Cloudinary upload error:", e)
-        return jsonify({"error": "Failed to upload dish image"}), 500
+    # Optional: save to local or Cloudinary later
+    file.save(os.path.join("uploads", file.filename))
+    return jsonify({"message": "File uploaded", "filename": file.filename}), 200
 
 
 UPLOAD_FOLDER = "uploads"
