@@ -1091,6 +1091,55 @@ def get_single_blog(slug):
         return jsonify({"message": "Internal Server Error", "error": str(e)}), 500
 
 
+@app.route("/api/dashboard-stats", methods=["GET"])
+def dashboard_stats():
+    # Total users
+    total_users = mongo.db.users.count_documents({})
+
+    # Active users (example: users with 'is_active': True)
+    active_users = mongo.db.users.count_documents({"status": "active"})
+
+    # Today's orders
+    today = datetime.now().date()
+    today_orders = mongo.db.orders.count_documents({
+        "created_at": {"$gte": datetime(today.year, today.month, today.day)}
+    })
+
+    # Pending orders
+    pending_orders = mongo.db.orders.count_documents({"status": "pending"})
+
+    # This month's orders and sales
+    month_orders = mongo.db.orders.count_documents({
+        "created_at": {"$gte": datetime(today.year, today.month, 1)}
+    })
+    month_sales_cursor = mongo.db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": datetime(today.year, today.month, 1)}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total"}}}
+    ])
+    month_sales = next(month_sales_cursor, {}).get("total", 0)
+
+    # Today's revenue
+    today_revenue_cursor = mongo.db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": datetime(today.year, today.month, today.day)}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total"}}}
+    ])
+    today_revenue = next(today_revenue_cursor, {}).get("total", 0)
+
+    response = {
+        "totalUsers": total_users,
+        "activeUsers": active_users,
+        "todayOrders": today_orders,
+        "pendingOrders": pending_orders,
+        "monthOrders": month_orders,
+        "monthSales": month_sales,
+        "todayRevenue": today_revenue,
+    }
+
+    # ✅ Console log all stats
+    print("Dashboard Stats Response:", response)
+
+    return jsonify(response), 200
+
 
 DIGITRANSIT_API = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
 
