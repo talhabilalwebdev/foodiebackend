@@ -18,6 +18,7 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 from dotenv import load_dotenv
+import pytz
 load_dotenv()
 
 # ---------------------------
@@ -433,7 +434,10 @@ def delete_order(id):
 @app.route("/api/fdishes", methods=["GET"])
 def get_fdishes():
     today = date.today()
-    day = today.strftime("%A")  # get day name, e.g., "Monday"
+    # day = today.strftime("%A")  # get day name, e.g., "Monday"
+
+    sa_tz = pytz.timezone("Asia/Riyadh")
+    day = datetime.now(sa_tz).strftime("%A")
 
     # Find dishes for today that are not deleted
     dishes = list(
