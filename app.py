@@ -1097,52 +1097,86 @@ def get_single_blog(slug):
 
 @app.route("/api/dashboard-stats", methods=["GET"])
 def dashboard_stats():
-    # Total users
-    total_users = mongo.db.users.count_documents({})
+    try:
+        # ✅ Get logged-in user info (assuming token-based authentication)
+        user_email = request.args.get("email")  # or from token
+        user = mongo.db.users.find_one({"email": user_email})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    # Active users (example: users with 'is_active': True)
-    active_users = mongo.db.users.count_documents({"status": "active"})
+        role = user.get("role", "user")
+        today = datetime.now().date()
 
-    # Today's orders
-    today = datetime.now().date()
-    today_orders = mongo.db.orders.count_documents({
-        "created_at": {"$gte": datetime(today.year, today.month, today.day)}
-    })
+        if role == "admin":
+            # ----------------------------
+            # ✅ ADMIN DASHBOARD STATISTICS
+            # ----------------------------
+            total_users = mongo.db.users.count_documents({})
+            active_users = mongo.db.users.count_documents({"status": "active"})
+            today_orders = mongo.db.orders.count_documents({
+                "created_at": {"$gte": datetime(today.year, today.month, today.day)}
+            })
+            pending_orders = mongo.db.orders.count_documents({"status": "pending"})
+            month_orders = mongo.db.orders.count_documents({
+                "created_at": {"$gte": datetime(today.year, today.month, 1)}
+            })
 
-    # Pending orders
-    pending_orders = mongo.db.orders.count_documents({"status": "pending"})
+            month_sales_cursor = mongo.db.orders.aggregate([
+                {"$match": {"created_at": {"$gte": datetime(today.year, today.month, 1)}}},
+                {"$group": {"_id": None, "total": {"$sum": "$total"}}}
+            ])
+            month_sales = next(month_sales_cursor, {}).get("total", 0)
 
-    # This month's orders and sales
-    month_orders = mongo.db.orders.count_documents({
-        "created_at": {"$gte": datetime(today.year, today.month, 1)}
-    })
-    month_sales_cursor = mongo.db.orders.aggregate([
-        {"$match": {"created_at": {"$gte": datetime(today.year, today.month, 1)}}},
-        {"$group": {"_id": None, "total": {"$sum": "$total"}}}
-    ])
-    month_sales = next(month_sales_cursor, {}).get("total", 0)
+            today_revenue_cursor = mongo.db.orders.aggregate([
+                {"$match": {"created_at": {"$gte": datetime(today.year, today.month, today.day)}}},
+                {"$group": {"_id": None, "total": {"$sum": "$total"}}}
+            ])
+            today_revenue = next(today_revenue_cursor, {}).get("total", 0)
 
-    # Today's revenue
-    today_revenue_cursor = mongo.db.orders.aggregate([
-        {"$match": {"created_at": {"$gte": datetime(today.year, today.month, today.day)}}},
-        {"$group": {"_id": None, "total": {"$sum": "$total"}}}
-    ])
-    today_revenue = next(today_revenue_cursor, {}).get("total", 0)
+            response = {
+                "role": "admin",
+                "totalUsers": total_users,
+                "activeUsers": active_users,
+                "todayOrders": today_orders,
+                "pendingOrders": pending_orders,
+                "monthOrders": month_orders,
+                "monthSales": month_sales,
+                "todayRevenue": today_revenue,
+            }
 
-    response = {
-        "totalUsers": total_users,
-        "activeUsers": active_users,
-        "todayOrders": today_orders,
-        "pendingOrders": pending_orders,
-        "monthOrders": month_orders,
-        "monthSales": month_sales,
-        "todayRevenue": today_revenue,
-    }
+        else:
+            # ----------------------------
+            # ✅ USER DASHBOARD STATISTICS
+            # ----------------------------
+            user_id = str(user["_id"])
+            user_orders_total = mongo.db.orders.count_documents({"user_id": user_id})
+            user_pending_orders = mongo.db.orders.count_documents({
+                "user_id": user_id, "status": "pending"
+            })
+            today_orders = mongo.db.orders.count_documents({
+                "user_id": user_id,
+                "created_at": {"$gte": datetime(today.year, today.month, today.day)}
+            })
+            total_spent_cursor = mongo.db.orders.aggregate([
+                {"$match": {"user_id": user_id}},
+                {"$group": {"_id": None, "total": {"$sum": "$total"}}}
+            ])
+            total_spent = next(total_spent_cursor, {}).get("total", 0)
 
-    # ✅ Console log all stats
-    print("Dashboard Stats Response:", response)
+            response = {
+                "role": "user",
+                "totalOrders": user_orders_total,
+                "pendingOrders": user_pending_orders,
+                "todayOrders": today_orders,
+                "totalSpent": total_spent,
+            }
 
-    return jsonify(response), 200
+        print("Dashboard Stats Response:", response)
+        return jsonify(response), 200
+
+    except Exception as e:
+        print("Error fetching dashboard stats:", str(e))
+        return jsonify({"error": "Server error", "details": str(e)}), 500
 
 
 DIGITRANSIT_API = "https://api.digitransit.fi/routing/v1/routers/hsl/index/graphql"
